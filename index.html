@@ -9,7 +9,8 @@
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;background:#f2f2f7;color:#1c1c1e;min-height:100vh;}
 
-.topbar{background:#1a73e8;padding:14px 16px 10px;position:sticky;top:0;z-index:100;}
+.stick-header{position:sticky;top:0;z-index:100;}
+.topbar{background:#1a73e8;padding:14px 16px 10px;}
 .topbar-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
 .topbar h1{font-size:17px;font-weight:700;color:#fff;}
 .sync-btn{font-size:12px;background:rgba(255,255,255,0.2);color:#fff;border:0.5px solid rgba(255,255,255,0.4);padding:5px 12px;border-radius:20px;cursor:pointer;display:flex;align-items:center;gap:4px;}
@@ -18,11 +19,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
 .stat-n{font-size:18px;font-weight:700;color:#fff;}
 .stat-l{font-size:9px;color:rgba(255,255,255,0.8);margin-top:1px;}
 
-.tab-bar{display:flex;background:#fff;border-bottom:0.5px solid #e5e5ea;position:sticky;top:90px;z-index:99;}
-.tab{flex:1;padding:10px 4px;font-size:12px;font-weight:600;text-align:center;color:#8e8e93;border:none;background:none;cursor:pointer;border-bottom:2.5px solid transparent;}
+.tab-bar{display:flex;background:#fff;border-bottom:0.5px solid #e5e5ea;}
+.tab{flex:1;padding:10px 3px;font-size:12px;font-weight:600;text-align:center;color:#8e8e93;border:none;background:none;cursor:pointer;border-bottom:2.5px solid transparent;white-space:nowrap;}
 .tab.on{color:#1a73e8;border-bottom-color:#1a73e8;}
 
-.filter-wrap{background:#fff;border-bottom:0.5px solid #e5e5ea;position:sticky;top:132px;z-index:98;}
+.filter-wrap{background:#fff;border-bottom:0.5px solid #e5e5ea;}
 .filter-bar{display:flex;gap:7px;padding:8px 14px;overflow-x:auto;}
 .filter-bar::-webkit-scrollbar{display:none;}
 .filter-divider{height:0.5px;background:#f2f2f7;margin:0 14px;}
@@ -251,6 +252,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
 <body>
 
 <div id="main-view">
+  <div class="stick-header">
   <div class="topbar">
     <div class="topbar-row">
       <h1>🔌 멀스 &amp; 메인 모니터링</h1>
@@ -293,6 +295,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
     </div>
     <div class="filter-divider"></div>
     <div class="filter-bar-region" id="region-chips"><span class="chip-region" onclick="setRegion(&#39;서울&#39;,this)">서울 <span style="font-size:10px;opacity:0.7;">38</span></span><span class="chip-region" onclick="setRegion(&#39;경기&#39;,this)">경기 <span style="font-size:10px;opacity:0.7;">49</span></span><span class="chip-region" onclick="setRegion(&#39;부산&#39;,this)">부산 <span style="font-size:10px;opacity:0.7;">21</span></span><span class="chip-region" onclick="setRegion(&#39;인천&#39;,this)">인천 <span style="font-size:10px;opacity:0.7;">10</span></span><span class="chip-region" onclick="setRegion(&#39;대구&#39;,this)">대구 <span style="font-size:10px;opacity:0.7;">10</span></span><span class="chip-region" onclick="setRegion(&#39;대전&#39;,this)">대전 <span style="font-size:10px;opacity:0.7;">10</span></span><span class="chip-region" onclick="setRegion(&#39;광주&#39;,this)">광주 <span style="font-size:10px;opacity:0.7;">6</span></span><span class="chip-region" onclick="setRegion(&#39;울산&#39;,this)">울산 <span style="font-size:10px;opacity:0.7;">10</span></span><span class="chip-region" onclick="setRegion(&#39;강원&#39;,this)">강원 <span style="font-size:10px;opacity:0.7;">13</span></span><span class="chip-region" onclick="setRegion(&#39;충북&#39;,this)">충북 <span style="font-size:10px;opacity:0.7;">13</span></span><span class="chip-region" onclick="setRegion(&#39;충남&#39;,this)">충남 <span style="font-size:10px;opacity:0.7;">22</span></span><span class="chip-region" onclick="setRegion(&#39;전북&#39;,this)">전북 <span style="font-size:10px;opacity:0.7;">16</span></span><span class="chip-region" onclick="setRegion(&#39;전남&#39;,this)">전남 <span style="font-size:10px;opacity:0.7;">7</span></span><span class="chip-region" onclick="setRegion(&#39;경북&#39;,this)">경북 <span style="font-size:10px;opacity:0.7;">10</span></span><span class="chip-region" onclick="setRegion(&#39;경남&#39;,this)">경남 <span style="font-size:10px;opacity:0.7;">24</span></span><span class="chip-region" onclick="setRegion(&#39;제주&#39;,this)">제주 <span style="font-size:10px;opacity:0.7;">5</span></span></div>
+  </div>
   </div>
 
   <div class="content" id="content"><div class="region-header"><span>📍 서울 (38개)</span></div><div class="store-card" onclick="openDetail(&#39;13002&#39;)" style="display:flex;align-items:stretch;padding:0;">
