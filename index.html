@@ -146,7 +146,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
 </style>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getFirestore, doc, setDoc, onSnapshot, collection, deleteField } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getFirestore, doc, setDoc, deleteDoc, onSnapshot, collection, deleteField } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCj9E4JpUphP0dWTKxis5IEZ5aYJhpjuvY",
@@ -159,8 +160,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
 
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
+  const storage = getStorage(app);
 
-  // 실시간 동기화 — 담당자/상태/메모만 (사진은 로컬)
+  // 실시간 동기화 — 담당자/상태/메모 + Storage에 올라간 사진(URL)
   const visitCol = collection(db, 'visits');
   onSnapshot(visitCol, (snapshot) => {
     snapshot.docChanges().forEach(change => {
@@ -173,8 +175,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
         }
       } else {
         const data = change.doc.data();
-        const localMedia = (visitData[sid]||{}).media || [];
-        visitData[sid] = {...(visitData[sid]||{}), ...data, media: localMedia};
+        // Firestore의 동기화된 사진(URL) + 아직 업로드 안 된 로컬 사진(base64)을 합침
+        const syncedMedia = data.media || [];
+        const localOnly = ((visitData[sid]||{}).media || []).filter(m => !m.url);
+        visitData[sid] = {...(visitData[sid]||{}), ...data, media: [...syncedMedia, ...localOnly]};
       }
     });
     saveLocal();
@@ -182,15 +186,33 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
     render();
   });
 
-  // Firebase 저장 (사진 제외)
+  // 파일을 Storage에 업로드하고 {url, path} 반환 (실패 시 throw → 호출부에서 로컬 폴백)
+  window.uploadMedia = async function(sid, file) {
+    const safe = (file.name || 'file').replace(/[^\w.\-]/g, '_');
+    const path = `visits/${sid}/${Date.now()}_${safe}`;
+    const r = ref(storage, path);
+    await uploadBytes(r, file);
+    const url = await getDownloadURL(r);
+    return { url, path };
+  };
+
+  // Firebase 저장 — 담당자/상태/메모 + Storage URL 사진만(base64는 용량상 제외)
   window.saveToFirebase = async function(sid) {
     const v = visitData[sid] || {};
     const { media, ...rest } = v;
+    const syncedMedia = (media || [])
+      .filter(m => m.url)
+      .map(m => ({ type: m.type, url: m.url, path: m.path || '', name: m.name || '' }));
     try {
-      await setDoc(doc(db, 'visits', sid), rest, { merge: true });
+      await setDoc(doc(db, 'visits', sid), { ...rest, media: syncedMedia }, { merge: true });
     } catch(e) {
       showToast('⚠️ 동기화 실패 — 로컬 저장됨');
     }
+  };
+
+  // 매장 기록을 Firestore에서 삭제 (초기화 시 팀 공유본도 제거)
+  window.deleteFromFirebase = async function(sid) {
+    try { await deleteDoc(doc(db, 'visits', sid)); } catch(e) {}
   };
 
   window._fbReady = true;
@@ -5065,9 +5087,11 @@ function saveVisit() {
 
 function clearVisitData() {
   if (!confirm('이 매장의 방문 기록과 사진을 모두 초기화할까요?')) return;
-  delete visitData[currentSid];
+  const sid = currentSid;
+  delete visitData[sid];
   saveLocal();
-  openDetail(currentSid);
+  if (window._fbReady && window.deleteFromFirebase) window.deleteFromFirebase(sid);
+  openDetail(sid);
   showToast('초기화 완료');
 }
 
@@ -5077,41 +5101,65 @@ function renderDetailMedia() {
   const grid = document.getElementById('d-media-grid');
   const thumbs = media.map((m,i) => {
     if (m.type === 'image') {
-      return `<div class="media-thumb" onclick="viewMedia(${i})"><img src="${m.data}" alt="사진${i+1}"></div>`;
+      return `<div class="media-thumb" onclick="viewMedia(${i})"><img src="${m.url || m.data}" alt="사진${i+1}"></div>`;
     } else {
-      return `<div class="media-thumb" onclick="viewMedia(${i})"><video src="${m.data}" muted playsinline></video><div class="video-overlay"><span>▶</span></div></div>`;
+      return `<div class="media-thumb" onclick="viewMedia(${i})"><video src="${m.url || m.data}" muted playsinline></video><div class="video-overlay"><span>▶</span></div></div>`;
     }
   });
   thumbs.push(`<div class="media-thumb add-thumb" onclick="document.getElementById('gal-input').click()"><span>＋</span><p>추가</p></div>`);
   grid.innerHTML = thumbs.join('');
 }
 
-function handleFiles(input) {
-  const files = Array.from(input.files);
-  if (!files.length) return;
-  if (!visitData[currentSid]) visitData[currentSid] = {media:[]};
-  if (!visitData[currentSid].media) visitData[currentSid].media = [];
-  let done = 0;
-  files.forEach(file => {
+function readAsDataURL(file) {
+  return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = e => {
-      visitData[currentSid].media.push({type: file.type.startsWith('video') ? 'video' : 'image', data: e.target.result, name: file.name});
-      done++;
-      if (done === files.length) {
-        if (saveLocal()) {
-          renderDetailMedia();
-          showToast(`${files.length}개 추가 완료`);
-        } else {
-          // 저장공간 초과 — 방금 추가분 롤백해 조용한 유실 방지
-          visitData[currentSid].media.splice(-files.length);
-          saveLocal();
-          renderDetailMedia();
-          showToast('⚠️ 저장공간 부족 — 사진이 저장되지 않았어요. 기존 사진을 다운로드 후 비우거나, 사진 동기화가 필요해요.');
-        }
-      }
-    };
+    reader.onload = e => resolve(e.target.result);
+    reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+}
+
+async function handleFiles(input) {
+  const files = Array.from(input.files);
+  if (!files.length) return;
+  const sid = currentSid;
+  if (!visitData[sid]) visitData[sid] = {media:[]};
+  if (!visitData[sid].media) visitData[sid].media = [];
+  const startLen = visitData[sid].media.length;
+  showToast(`${files.length}개 처리 중...`);
+  let uploaded = 0, local = 0;
+  for (const file of files) {
+    const type = file.type.startsWith('video') ? 'video' : 'image';
+    let item = null;
+    // 1순위: Firebase Storage 업로드 → URL (팀 공유)
+    if (window._fbReady && window.uploadMedia) {
+      try {
+        const { url, path } = await window.uploadMedia(sid, file);
+        item = { type, url, path, name: file.name };
+        uploaded++;
+      } catch(e) { /* 실패 시 아래 로컬 폴백 */ }
+    }
+    // 2순위: 로컬 base64 (Storage 미설정/오프라인 등)
+    if (!item) {
+      try { item = { type, data: await readAsDataURL(file), name: file.name }; local++; }
+      catch(e) { continue; }
+    }
+    visitData[sid].media.push(item);
+  }
+  // 로컬 저장 (base64 때문에 용량 초과 가능)
+  if (!saveLocal()) {
+    // 이번 배치에서 추가한 것 중 base64만 롤백 — 기존 사진과 업로드된 URL은 유지
+    const added = visitData[sid].media.slice(startLen).filter(m => m.url);
+    visitData[sid].media = visitData[sid].media.slice(0, startLen).concat(added);
+    saveLocal();
+    showToast('⚠️ 저장공간 부족 — 동기화 안 된 사진은 저장되지 않았어요.');
+  } else if (uploaded && window.saveToFirebase) {
+    window.saveToFirebase(sid);  // URL 메타데이터를 Firestore에 동기화
+    showToast(local ? `${uploaded}개 동기화 · ${local}개 로컬저장` : `${uploaded}개 동기화 완료`);
+  } else {
+    showToast(`${files.length}개 추가 완료 (로컬)`);
+  }
+  renderDetailMedia();
   input.value = '';
 }
 
@@ -5119,8 +5167,9 @@ function viewMedia(idx) {
   const m = (getVisit(currentSid).media||[])[idx];
   if (!m) return;
   const w = window.open();
-  if (m.type === 'image') w.document.write(`<body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh;"><img src="${m.data}" style="max-width:100%;max-height:100vh;"></body>`);
-  else w.document.write(`<body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh;"><video src="${m.data}" controls autoplay style="max-width:100%;max-height:100vh;"></video></body>`);
+  const src = m.url || m.data;
+  if (m.type === 'image') w.document.write(`<body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh;"><img src="${src}" style="max-width:100%;max-height:100vh;"></body>`);
+  else w.document.write(`<body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh;"><video src="${src}" controls autoplay style="max-width:100%;max-height:100vh;"></video></body>`);
 }
 
 function downloadStoreMedia() {
@@ -5129,7 +5178,8 @@ function downloadStoreMedia() {
   if (!media.length) { showToast('다운로드할 파일이 없어요'); return; }
   media.forEach((m,i) => {
     const a = document.createElement('a');
-    a.href = m.data;
+    a.href = m.url || m.data;
+    if (m.url) a.target = '_blank';  // Storage URL은 새 탭으로(파일명 강제는 제한될 수 있음)
     const ext = m.type === 'video' ? 'mp4' : 'jpg';
     a.download = `${s.name}_${i+1}.${ext}`;
     a.click();
@@ -5166,16 +5216,23 @@ async function downloadAllZip() {
   if (!storesWithMedia.length) { showToast('다운로드할 사진/영상이 없어요'); return; }
   showToast('ZIP 파일 생성 중...');
   const zip = new JSZip();
-  storesWithMedia.forEach(s => {
+  for (const s of storesWithMedia) {
     const v = getVisit(s.sid);
     const folderName = `${s.name}_${s.sid}`.replace(/[\/\\:*?"<>|]/g,'_');
     const folder = zip.folder(folderName);
-    (v.media||[]).forEach((m, i) => {
+    const media = v.media || [];
+    for (let i = 0; i < media.length; i++) {
+      const m = media[i];
       const ext = m.type === 'video' ? 'mp4' : 'jpg';
-      const base64 = m.data.split(',')[1];
-      folder.file(`${String(i+1).padStart(2,'0')}_${m.name||`파일${i+1}.${ext}`}`, base64, {base64:true});
-    });
-  });
+      const fname = `${String(i+1).padStart(2,'0')}_${m.name||`파일${i+1}.${ext}`}`;
+      if (m.data) {
+        folder.file(fname, m.data.split(',')[1], {base64:true});       // 로컬 base64
+      } else if (m.url) {
+        try { folder.file(fname, await (await fetch(m.url)).blob()); }  // Storage URL → blob
+        catch(e) { /* 가져오기 실패한 파일은 건너뜀 */ }
+      }
+    }
+  }
   const blob = await zip.generateAsync({type:'blob'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
