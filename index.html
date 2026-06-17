@@ -287,6 +287,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
       <span class="chip" onclick="setFilter(&#39;메뉴잇멀스&#39;,this)">메뉴잇 멀스</span>
       <span class="chip" onclick="setFilter(&#39;MT85&#39;,this)">MT85</span>
       <span class="chip" onclick="setFilter(&#39;MT618&#39;,this)">MT618</span>
+      <span class="chip" onclick="setFilter(&#39;Z11PLUS&#39;,this)">Z11 PLUS</span>
       <span class="chip" onclick="setFilter(&#39;재방문필요&#39;,this)">⚠️ 재방문필요</span>
       <span class="chip" onclick="setFilter(&#39;사진있음&#39;,this)">📷 사진있음</span>
     </div>
@@ -4563,8 +4564,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
     <div class="info-grid">
       <div class="info-box"><div class="info-label">SID</div><div class="info-val" id="d-sid"></div></div>
       <div class="info-box"><div class="info-label">방문 상태</div><div class="info-val" id="d-vstatus"></div></div>
-      <div class="info-box"><div class="info-label">메인 (충전기)</div><div class="info-val blue" id="d-charger"></div></div>
-      <div class="info-box"><div class="info-label">멀스 사용여부</div><div class="info-val" id="d-muls"></div></div>
+      <div class="info-box"><div class="info-label">메인 태블릿</div><div class="info-val blue" id="d-charger"></div></div>
+      <div class="info-box"><div class="info-label">멀티스테이션</div><div class="info-val" id="d-muls"></div></div>
     </div>
     <div class="info-full"><div class="info-label">주소</div><div class="info-val" id="d-addr"></div></div>
     <button class="map-btn" onclick="openMap()">🗺️ 길찾기 · 지도에서 열기</button>
@@ -4592,11 +4593,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
         <input class="form-input" id="f-date" type="date">
       </div>
       <div class="form-row">
-        <label class="form-label">멀스 종류</label>
+        <label class="form-label">메인 태블릿</label>
+        <select class="form-select" id="f-charger-edit">
+          <option value="">선택</option>
+          <option>MT85</option>
+          <option>MT618</option>
+          <option>Z11 PLUS</option>
+          <option>미설치</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label class="form-label">멀티스테이션</label>
         <select class="form-select" id="f-muls-edit">
           <option value="">선택</option>
-          <option>쉴더스 멀스</option>
           <option>메뉴잇 멀스</option>
+          <option>쉴더스 멀스</option>
           <option>미사용</option>
         </select>
       </div>
@@ -4831,6 +4842,11 @@ function getEffectiveMuls(s) {
   return v.muls || s.muls || '';
 }
 
+function getEffectiveCharger(s) {
+  const v = getVisit(s.sid);
+  return v.charger || s.charger || '';
+}
+
 function updateStats() {
   const total = stores.length;
   const done = stores.filter(s => getEffectiveStatus(s) === '방문완료').length;
@@ -4890,8 +4906,9 @@ function filterStores(list) {
     list = list.filter(s => ((s.name||'') + ' ' + (s.addr||'') + ' ' + (s.tel||'')).toLowerCase().includes(searchQuery));
   }
   if (currentFilter === '전체') return list;
-  if (currentFilter === 'MT85') return list.filter(s => s.charger === 'MT85' || s.charger === '85');
-  if (currentFilter === 'MT618') return list.filter(s => s.charger === 'MT618');
+  if (currentFilter === 'MT85') return list.filter(s => { const c = getEffectiveCharger(s); return c === 'MT85' || c === '85'; });
+  if (currentFilter === 'MT618') return list.filter(s => getEffectiveCharger(s) === 'MT618');
+  if (currentFilter === 'Z11PLUS') return list.filter(s => getEffectiveCharger(s).replace(/\s/g,'').toUpperCase() === 'Z11PLUS');
   if (currentFilter === '쉴더스멀스') return list.filter(s => getEffectiveMuls(s).includes('쉴더스') || getEffectiveMuls(s) === 'SK');
   if (currentFilter === '메뉴잇멀스') return list.filter(s => getEffectiveMuls(s).includes('메뉴잇') || getEffectiveMuls(s) === '메뉴잇');
   if (currentFilter === '사진있음') return list.filter(s => (getVisit(s.sid).media||[]).length > 0);
@@ -5204,7 +5221,7 @@ function storeCardHTML(s, showManager, distText) {
       <div class="card-pills">
         ${distPill}
         ${mulsLabel(m)}
-        ${chargerPill(s.charger)}
+        ${chargerPill(getEffectiveCharger(s))}
         ${managerStr}
         ${dateStr}
         <span class="photo-badge ${hasMedia?'has':''}">📷${photoCount} 🎥${videoCount}</span>
@@ -5269,13 +5286,14 @@ function openDetail(sid) {
   document.getElementById('d-title').textContent = s.name;
   document.getElementById('d-sid').textContent = s.sid || '-';
   document.getElementById('d-vstatus').textContent = getEffectiveStatus(s) || '-';
-  document.getElementById('d-charger').textContent = s.charger || '-';
+  document.getElementById('d-charger').textContent = getEffectiveCharger(s) || '-';
   document.getElementById('d-muls').textContent = getEffectiveMuls(s) || '-';
   document.getElementById('d-addr').textContent = s.addr || '-';
   document.getElementById('d-tel').textContent = s.tel || '-';
   document.getElementById('f-status').value = v.status || s.status || '';
   document.getElementById('f-manager').value = v.manager || '';
   document.getElementById('f-date').value = v.date || '';
+  document.getElementById('f-charger-edit').value = v.charger || s.charger || '';
   document.getElementById('f-muls-edit').value = v.muls || '';
   document.getElementById('f-memo').value = v.memo || '';
   updateManagerDatalist();
@@ -5311,11 +5329,14 @@ function saveVisit() {
   v.status = document.getElementById('f-status').value;
   v.manager = document.getElementById('f-manager').value;
   v.date = document.getElementById('f-date').value;
+  v.charger = document.getElementById('f-charger-edit').value;
   v.muls = document.getElementById('f-muls-edit').value;
   v.memo = document.getElementById('f-memo').value;
   saveLocal();
   if (window._fbReady) window.saveToFirebase(currentSid);
   document.getElementById('d-vstatus').textContent = v.status || '-';
+  document.getElementById('d-charger').textContent = getEffectiveCharger(stores.find(x=>x.sid===currentSid)) || '-';
+  document.getElementById('d-muls').textContent = getEffectiveMuls(stores.find(x=>x.sid===currentSid)) || '-';
   showToast('✓ 저장 완료');
 }
 
@@ -5422,15 +5443,15 @@ function downloadStoreMedia() {
 }
 
 function downloadExcel() {
-  const rows = [['방문여부','SID','매장명','주소','대표자연락처','메인','멀스사용여부','담당자','방문날짜','메모','사진수','영상수']];
+  const rows = [['방문여부','SID','매장명','주소','대표자연락처','메인태블릿','멀티스테이션','담당자','방문날짜','메모','사진수','영상수']];
   stores.forEach(s => {
     const v = getVisit(s.sid);
     const photos = (v.media||[]).filter(m=>m.type==='image').length;
     const videos = (v.media||[]).filter(m=>m.type==='video').length;
     rows.push([
       v.status || s.status || '',
-      s.sid, s.name, s.addr, s.tel, s.charger,
-      v.muls || s.muls || '',
+      s.sid, s.name, s.addr, s.tel, getEffectiveCharger(s),
+      getEffectiveMuls(s),
       v.manager || '', v.date || '', v.memo || '',
       photos, videos
     ]);
