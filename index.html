@@ -58,6 +58,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
 .chip.on{background:#E6F1FB;color:#0C447C;border-color:#85B7EB;}
 .chip-region{padding:5px 12px;border-radius:20px;font-size:12px;font-weight:500;border:0.5px solid #e5e5ea;color:#636366;white-space:nowrap;background:#fff;cursor:pointer;transition:all .15s;}
 .chip-region.on{background:#EAF3DE;color:#27500A;border-color:#C0DD97;}
+.chip-sub{padding:5px 12px;border-radius:20px;font-size:12px;font-weight:500;border:0.5px solid #e5e5ea;color:#636366;white-space:nowrap;background:#fff;cursor:pointer;transition:all .15s;}
+.chip-sub.on{background:#FCEFE0;color:#8a4b00;border-color:#F0C490;}
+#subregion-chips{border-top:0.5px dashed #ececec;}
 
 .content{padding:0 0 80px;}
 
@@ -295,6 +298,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
     </div>
     <div class="filter-divider"></div>
     <div class="filter-bar-region" id="region-chips"><span class="chip-region" onclick="setRegion(&#39;서울&#39;,this)">서울 <span style="font-size:10px;opacity:0.7;">38</span></span><span class="chip-region" onclick="setRegion(&#39;경기&#39;,this)">경기 <span style="font-size:10px;opacity:0.7;">49</span></span><span class="chip-region" onclick="setRegion(&#39;부산&#39;,this)">부산 <span style="font-size:10px;opacity:0.7;">21</span></span><span class="chip-region" onclick="setRegion(&#39;인천&#39;,this)">인천 <span style="font-size:10px;opacity:0.7;">10</span></span><span class="chip-region" onclick="setRegion(&#39;대구&#39;,this)">대구 <span style="font-size:10px;opacity:0.7;">10</span></span><span class="chip-region" onclick="setRegion(&#39;대전&#39;,this)">대전 <span style="font-size:10px;opacity:0.7;">10</span></span><span class="chip-region" onclick="setRegion(&#39;광주&#39;,this)">광주 <span style="font-size:10px;opacity:0.7;">6</span></span><span class="chip-region" onclick="setRegion(&#39;울산&#39;,this)">울산 <span style="font-size:10px;opacity:0.7;">10</span></span><span class="chip-region" onclick="setRegion(&#39;강원&#39;,this)">강원 <span style="font-size:10px;opacity:0.7;">13</span></span><span class="chip-region" onclick="setRegion(&#39;충북&#39;,this)">충북 <span style="font-size:10px;opacity:0.7;">13</span></span><span class="chip-region" onclick="setRegion(&#39;충남&#39;,this)">충남 <span style="font-size:10px;opacity:0.7;">22</span></span><span class="chip-region" onclick="setRegion(&#39;전북&#39;,this)">전북 <span style="font-size:10px;opacity:0.7;">16</span></span><span class="chip-region" onclick="setRegion(&#39;전남&#39;,this)">전남 <span style="font-size:10px;opacity:0.7;">7</span></span><span class="chip-region" onclick="setRegion(&#39;경북&#39;,this)">경북 <span style="font-size:10px;opacity:0.7;">10</span></span><span class="chip-region" onclick="setRegion(&#39;경남&#39;,this)">경남 <span style="font-size:10px;opacity:0.7;">24</span></span><span class="chip-region" onclick="setRegion(&#39;제주&#39;,this)">제주 <span style="font-size:10px;opacity:0.7;">5</span></span></div>
+    <div class="filter-bar-region" id="subregion-chips" style="display:none;"></div>
   </div>
   </div>
 
@@ -4672,6 +4676,7 @@ let currentTab = 'list';
 let currentFilter = '전체';
 let currentSid = null;
 let currentRegion = '';
+let currentSubRegion = '';   // 시/군/구 세분화 필터
 let myName = '';
 let sortMode = 'region';   // 'region' | 'distance'
 let userLoc = null;        // {lat, lng} — 거리순 정렬 기준
@@ -4864,6 +4869,7 @@ function updateStats() {
 function setFilter(f, el) {
   currentFilter = f;
   currentRegion = '';
+  currentSubRegion = '';
   document.querySelectorAll('.chip').forEach(c => c.classList.remove('on'));
   document.querySelectorAll('.chip-region').forEach(c => c.classList.remove('on'));
   el.classList.add('on');
@@ -4872,6 +4878,7 @@ function setFilter(f, el) {
 
 function setRegion(r, el) {
   currentRegion = currentRegion === r ? '' : r;
+  currentSubRegion = '';   // 도 바꾸면 하위 선택 초기화
   document.querySelectorAll('.chip-region').forEach(c => c.classList.remove('on'));
   if (currentRegion) el.classList.add('on');
   render();
@@ -4932,10 +4939,52 @@ function buildRegionChips() {
     }).join('');
 }
 
+function buildSubRegionChips() {
+  const el = document.getElementById('subregion-chips');
+  if (!el) return;
+  // 세분화 대상 지역이 선택됐을 때만 하위 칩 표시
+  if (!currentRegion || !SUBDIVIDABLE.has(currentRegion)) {
+    el.style.display = 'none';
+    el.innerHTML = '';
+    return;
+  }
+  const counts = {};
+  stores.filter(s => getRegion(s.addr) === currentRegion).forEach(s => {
+    const sub = getSubRegion(s.addr) || '기타';
+    counts[sub] = (counts[sub] || 0) + 1;
+  });
+  const subs = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  if (subs.length <= 1) { el.style.display = 'none'; el.innerHTML = ''; return; }  // 한 곳뿐이면 굳이 안 보임
+  el.style.display = 'flex';
+  el.innerHTML = subs.map(([sub, cnt]) =>
+    `<span class="chip-sub ${currentSubRegion === sub ? 'on' : ''}" onclick="setSubRegion('${sub}',this)">${sub} <span style="font-size:10px;opacity:0.7;">${cnt}</span></span>`
+  ).join('');
+}
+
+function setSubRegion(sub, el) {
+  currentSubRegion = currentSubRegion === sub ? '' : sub;
+  document.querySelectorAll('.chip-sub').forEach(c => c.classList.remove('on'));
+  if (currentSubRegion) el.classList.add('on');
+  render();
+}
+
 function getRegion(addr) {
   if (!addr) return '기타';
   const m = addr.match(/^(서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주)/);
   return m ? m[1] : '기타';
+}
+
+// 시/군/구로 세분화하는 지역 (광역시·세종 제외, 서울 + 도)
+const SUBDIVIDABLE = new Set(['서울','경기','강원','충북','충남','전북','전남','경북','경남','제주']);
+
+// 주소에서 시/군/구 추출. "경기 수원시 ..." → 수원시, "서울 마포구 ..." → 마포구
+function getSubRegion(addr) {
+  if (!addr) return '';
+  const parts = addr.trim().split(/\s+/);
+  for (let i = 1; i < Math.min(parts.length, 4); i++) {
+    if (/(시|군|구)$/.test(parts[i])) return parts[i];
+  }
+  return '';
 }
 
 function statusTag(st) {
@@ -4965,6 +5014,7 @@ function render() {
     return;
   }
   buildRegionChips();
+  buildSubRegionChips();
   if (currentTab === 'list') renderList(el);
   else if (currentTab === 'done') renderDone(el);
   else if (currentTab === 'myplan') renderMyPlan(el);
@@ -5135,6 +5185,7 @@ function openGoogleRoute() {
 function renderList(el) {
   let list = filterStores(stores);
   if (currentRegion) list = list.filter(s => getRegion(s.addr) === currentRegion);
+  if (currentSubRegion) list = list.filter(s => (getSubRegion(s.addr) || '기타') === currentSubRegion);
   if (!list.length) { el.innerHTML = '<div class="empty-state"><p>해당 조건의 매장이 없어요</p></div>'; return; }
   if (sortMode === 'distance' && userLoc) {
     const html = `<div class="region-header"><span>📍 가까운 순 (${list.length}개)</span></div>` +
@@ -5162,6 +5213,7 @@ function renderList(el) {
 function renderDone(el) {
   let list = filterStores(stores).filter(s => getEffectiveStatus(s) === '방문완료');
   if (currentRegion) list = list.filter(s => getRegion(s.addr) === currentRegion);
+  if (currentSubRegion) list = list.filter(s => (getSubRegion(s.addr) || '기타') === currentSubRegion);
   if (!list.length) { el.innerHTML = '<div class="empty-state"><p>방문완료 매장이 없어요</p></div>'; return; }
   if (sortMode === 'distance' && userLoc) {
     el.innerHTML = sortByDistance(list).map(o => storeCardHTML(o.s, true, distLabel(o.km))).join('');
