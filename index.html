@@ -147,7 +147,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getFirestore, doc, setDoc, deleteDoc, onSnapshot, collection, deleteField } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-  import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+
+  // ▼▼▼ Cloudinary 설정 — 본인 무료 계정 값으로 채우세요 ▼▼▼
+  //  CLOUD_NAME: 대시보드 상단의 'Cloud name'
+  //  UPLOAD_PRESET: Settings > Upload > 'Add upload preset'에서 Signing Mode=Unsigned로 만든 이름
+  //  둘 다 채워지면 사진/영상이 Cloudinary로 업로드되어 팀에 공유되고,
+  //  비어 있으면 기존처럼 로컬 저장으로 자동 폴백됩니다.
+  const CLOUDINARY_CLOUD_NAME   = "";
+  const CLOUDINARY_UPLOAD_PRESET = "";
+  // ▲▲▲ Cloudinary 설정 끝 ▲▲▲
 
   const firebaseConfig = {
     apiKey: "AIzaSyCj9E4JpUphP0dWTKxis5IEZ5aYJhpjuvY",
@@ -160,9 +168,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
 
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
-  const storage = getStorage(app);
 
-  // 실시간 동기화 — 담당자/상태/메모 + Storage에 올라간 사진(URL)
+  // 실시간 동기화 — 담당자/상태/메모 + 업로드된 사진(URL)
   const visitCol = collection(db, 'visits');
   onSnapshot(visitCol, (snapshot) => {
     snapshot.docChanges().forEach(change => {
@@ -186,14 +193,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
     render();
   });
 
-  // 파일을 Storage에 업로드하고 {url, path} 반환 (실패 시 throw → 호출부에서 로컬 폴백)
+  // 파일을 Cloudinary에 업로드하고 {url, path} 반환 (실패/미설정 시 throw → 호출부에서 로컬 폴백)
   window.uploadMedia = async function(sid, file) {
-    const safe = (file.name || 'file').replace(/[^\w.\-]/g, '_');
-    const path = `visits/${sid}/${Date.now()}_${safe}`;
-    const r = ref(storage, path);
-    await uploadBytes(r, file);
-    const url = await getDownloadURL(r);
-    return { url, path };
+    if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) throw new Error('Cloudinary 미설정');
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+    fd.append('folder', `mulsu/${sid}`);
+    const endpoint = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`;
+    const res = await fetch(endpoint, { method: 'POST', body: fd });
+    if (!res.ok) throw new Error('Cloudinary 업로드 실패: ' + res.status);
+    const data = await res.json();
+    return { url: data.secure_url, path: data.public_id };
   };
 
   // Firebase 저장 — 담당자/상태/메모 + Storage URL 사진만(base64는 용량상 제외)
