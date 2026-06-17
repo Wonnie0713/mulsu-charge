@@ -37,6 +37,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
 .search-box .search-clear.show{display:block;}
 .nearby-btn{margin-top:8px;width:100%;padding:9px;border-radius:10px;border:0.5px solid #85B7EB;background:#fff;color:#0C447C;font-size:13px;font-weight:700;cursor:pointer;}
 .nearby-btn.on{background:#1a73e8;color:#fff;border-color:#1a73e8;}
+.card-actions{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding-right:8px;}
+.route-btn{width:30px;height:30px;border-radius:50%;border:1px solid #85B7EB;background:#fff;color:#1a73e8;font-size:16px;font-weight:700;cursor:pointer;line-height:1;flex-shrink:0;}
+.route-btn.on{background:#1a73e8;color:#fff;border-color:#1a73e8;}
+.route-fab{position:fixed;left:14px;right:14px;bottom:16px;z-index:200;background:#1a73e8;color:#fff;border-radius:14px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;font-size:14px;font-weight:700;box-shadow:0 4px 16px rgba(26,115,232,0.4);cursor:pointer;}
+.route-fab b{font-size:16px;}
+.route-fab-go{font-size:13px;opacity:0.95;}
+.route-summary{background:#E6F1FB;color:#0C447C;border-radius:10px;padding:10px 12px;font-size:13px;font-weight:700;margin-bottom:8px;}
+.route-warn{background:#fff3cd;color:#856404;border-radius:8px;padding:8px 10px;font-size:12px;margin-bottom:8px;}
+.route-row{display:flex;align-items:center;gap:10px;background:#fff;border:0.5px solid #e5e5ea;border-radius:10px;padding:10px 12px;margin-bottom:6px;}
+.route-num{width:24px;height:24px;border-radius:50%;background:#1a73e8;color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.route-info{flex:1;min-width:0;}
+.route-name{font-size:14px;font-weight:600;color:#1c1c1e;}
+.route-sub{font-size:11px;color:#8e8e93;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.route-kakao{font-size:12px;font-weight:600;color:#3C3489;background:#EEEDFE;padding:6px 10px;border-radius:8px;text-decoration:none;flex-shrink:0;}
+.route-go{width:100%;padding:13px;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;margin-top:10px;background:#34a853;color:#fff;}
+.route-tip{font-size:11px;color:#aeaeb2;margin-top:8px;line-height:1.5;text-align:center;}
 .chip{padding:5px 12px;border-radius:20px;font-size:12px;font-weight:500;border:0.5px solid #e5e5ea;color:#636366;white-space:nowrap;background:#fff;cursor:pointer;transition:all .15s;}
 .chip.on{background:#E6F1FB;color:#0C447C;border-color:#85B7EB;}
 .chip-region{padding:5px 12px;border-radius:20px;font-size:12px;font-weight:500;border:0.5px solid #e5e5ea;color:#636366;white-space:nowrap;background:#fff;cursor:pointer;transition:all .15s;}
@@ -4608,6 +4624,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
   </div>
 </div>
 
+<div class="screen" id="route-screen">
+  <div class="screen-header">
+    <button class="back-btn" onclick="closeRoute()">‹</button>
+    <div class="screen-title">🧭 오늘 동선</div>
+    <button class="del-btn" onclick="clearRoute()">비우기</button>
+  </div>
+  <div class="detail-body" id="route-body"></div>
+</div>
+
+<div class="route-fab" id="route-fab" style="display:none;" onclick="openRoute()">
+  <span>🧭 동선 <b id="route-count">0</b>개 담음</span>
+  <span class="route-fab-go">경로 짜기 ›</span>
+</div>
+
 <div class="toast" id="toast"></div>
 <div class="name-overlay" id="name-overlay" style="display:none;">
   <div class="name-popup">
@@ -4631,6 +4661,7 @@ let currentRegion = '';
 let myName = '';
 let sortMode = 'region';   // 'region' | 'distance'
 let userLoc = null;        // {lat, lng} — 거리순 정렬 기준
+let routeSel = [];         // 동선에 담은 sid 목록
 
 function initName() {
   myName = localStorage.getItem('my_name') || '';
@@ -4693,12 +4724,24 @@ function setMyPlan() {
 function loadLocal() {
   const vd = localStorage.getItem('visit_data');
   if (vd) visitData = JSON.parse(vd);
+  const rs = localStorage.getItem('route_sel');
+  if (rs) routeSel = JSON.parse(rs);
   const sd = localStorage.getItem('stores_cache');
   if (sd) {
     stores = JSON.parse(sd);
+    mergeCoords();   // 옛 캐시에 좌표가 없으면 BUILTIN에서 보강
     render();
     updateStats();
   }
+}
+
+// 캐시된 매장에 lat/lng가 없으면 BUILTIN_STORES에서 sid로 채워줌
+function mergeCoords() {
+  const map = {};
+  BUILTIN_STORES.forEach(b => { if (b.lat != null) map[b.sid] = { lat: b.lat, lng: b.lng }; });
+  let changed = false;
+  stores.forEach(s => { if (s.lat == null && map[s.sid]) { s.lat = map[s.sid].lat; s.lng = map[s.sid].lng; changed = true; } });
+  if (changed) localStorage.setItem('stores_cache', JSON.stringify(stores));
 }
 
 function saveLocal() {
@@ -4907,6 +4950,7 @@ function render() {
   else if (currentTab === 'myplan') renderMyPlan(el);
   else if (currentTab === 'manager') renderManager(el);
   else if (currentTab === 'download') renderDownload(el);
+  updateRouteFab();
 }
 
 function toggleNearby() {
@@ -4927,12 +4971,17 @@ function updateNearbyBtn() {
   b.textContent = sortMode === 'distance' ? '📍 가까운 순 ✓ (해제하려면 탭)' : '📍 가까운 순 정렬';
 }
 
+// 두 지점({lat,lng}) 사이 직선거리(km)
+function hav(a, b) {
+  const R = 6371, toR = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * toR, dLng = (b.lng - a.lng) * toR;
+  const x = Math.sin(dLat/2)**2 + Math.cos(a.lat*toR) * Math.cos(b.lat*toR) * Math.sin(dLng/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(x));
+}
+
 function distKm(s) {
   if (!userLoc || s.lat == null || s.lng == null) return null;
-  const R = 6371, toR = Math.PI / 180;
-  const dLat = (s.lat - userLoc.lat) * toR, dLng = (s.lng - userLoc.lng) * toR;
-  const a = Math.sin(dLat/2)**2 + Math.cos(userLoc.lat*toR) * Math.cos(s.lat*toR) * Math.sin(dLng/2)**2;
-  return 2 * R * Math.asin(Math.sqrt(a));
+  return hav(userLoc, s);
 }
 
 function distLabel(km) {
@@ -4943,6 +4992,123 @@ function distLabel(km) {
 function sortByDistance(list) {
   return list.map(s => ({ s, km: distKm(s) }))
              .sort((a, b) => (a.km == null ? Infinity : a.km) - (b.km == null ? Infinity : b.km));
+}
+
+/* ===== 동선(경로) 기능 ===== */
+function inRoute(sid) { return routeSel.includes(sid); }
+
+function saveRoute() { localStorage.setItem('route_sel', JSON.stringify(routeSel)); }
+
+function toggleRoute(sid) {
+  const i = routeSel.indexOf(sid);
+  if (i > -1) { routeSel.splice(i, 1); showToast('동선에서 제외'); }
+  else { routeSel.push(sid); showToast(`🧭 동선에 추가 (${routeSel.length}개)`); }
+  saveRoute();
+  render();
+}
+
+function clearRoute() {
+  if (!routeSel.length) return;
+  if (!confirm('담은 동선을 모두 비울까요?')) return;
+  routeSel = [];
+  saveRoute();
+  closeRoute();
+  render();
+}
+
+function updateRouteFab() {
+  const fab = document.getElementById('route-fab');
+  if (!fab) return;
+  fab.style.display = routeSel.length ? 'flex' : 'none';
+  const c = document.getElementById('route-count');
+  if (c) c.textContent = routeSel.length;
+}
+
+// 최근접 이웃 + 2-opt 로 방문 순서 최적화 (start: 출발 좌표 또는 null)
+function optimizeOrder(pts, start) {
+  const n = pts.length;
+  if (n <= 1) return pts.map((_, i) => i);
+  const visited = new Array(n).fill(false);
+  let order = [], cur = start;
+  if (!cur) { order.push(0); visited[0] = true; cur = pts[0]; }
+  while (order.length < n) {
+    let best = -1, bd = Infinity;
+    for (let i = 0; i < n; i++) { if (visited[i]) continue; const d = hav(cur, pts[i]); if (d < bd) { bd = d; best = i; } }
+    visited[best] = true; order.push(best); cur = pts[best];
+  }
+  const cost = ord => { let c = 0, prev = start; for (const idx of ord) { if (prev) c += hav(prev, pts[idx]); prev = pts[idx]; } return c; };
+  let improved = true;
+  while (improved) {
+    improved = false;
+    for (let i = 0; i < order.length - 1; i++) {
+      for (let k = i + 1; k < order.length; k++) {
+        const cand = order.slice(0, i).concat(order.slice(i, k + 1).reverse(), order.slice(k + 1));
+        if (cost(cand) < cost(order) - 1e-9) { order = cand; improved = true; }
+      }
+    }
+  }
+  return order;
+}
+
+function openRoute() {
+  if (!routeSel.length) { showToast('동선에 담은 매장이 없어요'); return; }
+  document.getElementById('route-screen').classList.add('on');
+  document.getElementById('route-screen').scrollTop = 0;
+  if (userLoc) { renderRoute(); return; }
+  if (navigator.geolocation) {
+    document.getElementById('route-body').innerHTML = '<div class="empty-state"><p>📍 현재 위치 확인 중...</p></div>';
+    navigator.geolocation.getCurrentPosition(
+      pos => { userLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude }; renderRoute(); },
+      () => { renderRoute(); },   // 위치 거부 시 첫 매장에서 출발
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+  } else { renderRoute(); }
+}
+
+function closeRoute() { document.getElementById('route-screen').classList.remove('on'); }
+
+function renderRoute() {
+  const body = document.getElementById('route-body');
+  const pts = routeSel.map(sid => stores.find(s => s.sid === sid)).filter(s => s && s.lat != null);
+  const noCoord = routeSel.length - pts.length;
+  if (!pts.length) { body.innerHTML = '<div class="empty-state"><p>좌표가 있는 매장이 없어요</p></div>'; return; }
+  const order = optimizeOrder(pts, userLoc);
+  const ordered = order.map(i => pts[i]);
+  let total = 0, prev = userLoc;
+  const rows = ordered.map((p, idx) => {
+    const leg = prev ? hav(prev, p) : 0; total += leg; prev = p;
+    const kakao = `https://map.kakao.com/link/to/${encodeURIComponent(p.name)},${p.lat},${p.lng}`;
+    return `<div class="route-row">
+      <div class="route-num">${idx + 1}</div>
+      <div class="route-info">
+        <div class="route-name">${p.name}</div>
+        <div class="route-sub">${idx === 0 && userLoc ? '출발지에서 ' : ''}${distLabel(leg)} · ${p.addr || ''}</div>
+      </div>
+      <a class="route-kakao" href="${kakao}" target="_blank" onclick="event.stopPropagation();">카카오</a>
+    </div>`;
+  }).join('');
+  const startNote = userLoc ? '현재 위치 출발 · ' : '첫 매장 출발 · ';
+  body.innerHTML = `
+    <div class="route-summary">${startNote}총 ${ordered.length}곳 · 직선 합계 약 ${distLabel(total)}</div>
+    ${noCoord ? `<div class="route-warn">⚠️ 좌표 없는 ${noCoord}곳은 제외됨</div>` : ''}
+    ${rows}
+    <button class="route-go google" onclick="openGoogleRoute()">🗺️ 구글지도로 전체 경로 열기</button>
+    <p class="route-tip">구글지도는 최적 순서대로 한 번에, 카카오는 매장별로 길안내해요. (구글 경유지 최대 9곳)</p>
+  `;
+  window._routeOrdered = ordered;  // 구글 핸드오프용
+}
+
+function openGoogleRoute() {
+  const ordered = window._routeOrdered || [];
+  if (!ordered.length) return;
+  const origin = userLoc ? `${userLoc.lat},${userLoc.lng}` : `${ordered[0].lat},${ordered[0].lng}`;
+  const pts = userLoc ? ordered.slice() : ordered.slice(1);
+  if (!pts.length) { showToast('경유할 매장이 부족해요'); return; }
+  const dest = pts[pts.length - 1];
+  const mids = pts.slice(0, -1).map(p => `${p.lat},${p.lng}`).join('|');
+  let url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest.lat},${dest.lng}&travelmode=driving`;
+  if (mids) url += `&waypoints=${encodeURIComponent(mids)}`;
+  window.open(url, '_blank');
 }
 
 function renderList(el) {
@@ -5027,6 +5193,7 @@ function storeCardHTML(s, showManager, distText) {
   const managerStr = v.manager ? `<span class="pill" style="background:#fff3cd;color:#856404;">👤 ${v.manager}</span>` : '';
   const dateStr = v.date ? `<span style="font-size:10px;color:#aeaeb2;">${v.date}</span>` : '';
   const isPinned = v.manager === myName && myName;
+  const inR = inRoute(s.sid);
   return `<div class="store-card" onclick="openDetail('${s.sid}')" style="display:flex;align-items:stretch;padding:0;">
     <div style="flex:1;padding:12px 10px 12px 14px;min-width:0;">
       <div class="card-row1">
@@ -5043,7 +5210,10 @@ function storeCardHTML(s, showManager, distText) {
         <span class="photo-badge ${hasMedia?'has':''}">📷${photoCount} 🎥${videoCount}</span>
       </div>
     </div>
-    <button class="pin-btn ${isPinned?'on':''}" onclick="event.stopPropagation();togglePin('${s.sid}')" title="내 담당 등록">${isPinned?'📌':'📌'}</button>
+    <div class="card-actions">
+      <button class="route-btn ${inR?'on':''}" onclick="event.stopPropagation();toggleRoute('${s.sid}')" title="동선에 담기">${inR?'✓':'＋'}</button>
+      <button class="pin-btn ${isPinned?'on':''}" onclick="event.stopPropagation();togglePin('${s.sid}')" title="내 담당 등록">📌</button>
+    </div>
   </div>`;
 }
 
