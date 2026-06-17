@@ -102,6 +102,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
 .info-val.blue{color:#1a73e8;}
 .info-full{background:#fff;border-radius:10px;padding:10px 12px;border:0.5px solid #e5e5ea;margin-bottom:8px;}
 .info-full .info-val{font-size:13px;font-weight:500;}
+.map-btn{width:100%;padding:11px;background:#E6F1FB;color:#0C447C;border:0.5px solid #85B7EB;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px;}
+.map-btn:active{background:#d6e7f7;}
 
 .sec-title{font-size:14px;font-weight:700;color:#1c1c1e;margin:16px 0 10px;display:flex;align-items:center;gap:6px;}
 
@@ -233,6 +235,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
       <span class="chip" onclick="setFilter(&#39;메뉴잇멀스&#39;,this)">메뉴잇 멀스</span>
       <span class="chip" onclick="setFilter(&#39;MT85&#39;,this)">MT85</span>
       <span class="chip" onclick="setFilter(&#39;MT618&#39;,this)">MT618</span>
+      <span class="chip" onclick="setFilter(&#39;재방문필요&#39;,this)">⚠️ 재방문필요</span>
+      <span class="chip" onclick="setFilter(&#39;사진있음&#39;,this)">📷 사진있음</span>
     </div>
     <div class="filter-divider"></div>
     <div class="filter-bar-region" id="region-chips"><span class="chip-region" onclick="setRegion(&#39;서울&#39;,this)">서울 <span style="font-size:10px;opacity:0.7;">38</span></span><span class="chip-region" onclick="setRegion(&#39;경기&#39;,this)">경기 <span style="font-size:10px;opacity:0.7;">49</span></span><span class="chip-region" onclick="setRegion(&#39;부산&#39;,this)">부산 <span style="font-size:10px;opacity:0.7;">21</span></span><span class="chip-region" onclick="setRegion(&#39;인천&#39;,this)">인천 <span style="font-size:10px;opacity:0.7;">10</span></span><span class="chip-region" onclick="setRegion(&#39;대구&#39;,this)">대구 <span style="font-size:10px;opacity:0.7;">10</span></span><span class="chip-region" onclick="setRegion(&#39;대전&#39;,this)">대전 <span style="font-size:10px;opacity:0.7;">10</span></span><span class="chip-region" onclick="setRegion(&#39;광주&#39;,this)">광주 <span style="font-size:10px;opacity:0.7;">6</span></span><span class="chip-region" onclick="setRegion(&#39;울산&#39;,this)">울산 <span style="font-size:10px;opacity:0.7;">10</span></span><span class="chip-region" onclick="setRegion(&#39;강원&#39;,this)">강원 <span style="font-size:10px;opacity:0.7;">13</span></span><span class="chip-region" onclick="setRegion(&#39;충북&#39;,this)">충북 <span style="font-size:10px;opacity:0.7;">13</span></span><span class="chip-region" onclick="setRegion(&#39;충남&#39;,this)">충남 <span style="font-size:10px;opacity:0.7;">22</span></span><span class="chip-region" onclick="setRegion(&#39;전북&#39;,this)">전북 <span style="font-size:10px;opacity:0.7;">16</span></span><span class="chip-region" onclick="setRegion(&#39;전남&#39;,this)">전남 <span style="font-size:10px;opacity:0.7;">7</span></span><span class="chip-region" onclick="setRegion(&#39;경북&#39;,this)">경북 <span style="font-size:10px;opacity:0.7;">10</span></span><span class="chip-region" onclick="setRegion(&#39;경남&#39;,this)">경남 <span style="font-size:10px;opacity:0.7;">24</span></span><span class="chip-region" onclick="setRegion(&#39;제주&#39;,this)">제주 <span style="font-size:10px;opacity:0.7;">5</span></span></div>
@@ -4511,6 +4515,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
       <div class="info-box"><div class="info-label">멀스 사용여부</div><div class="info-val" id="d-muls"></div></div>
     </div>
     <div class="info-full"><div class="info-label">주소</div><div class="info-val" id="d-addr"></div></div>
+    <button class="map-btn" onclick="openMap()">🗺️ 길찾기 · 지도에서 열기</button>
     <div class="info-full"><div class="info-label">대표자 연락처</div><div class="info-val" id="d-tel"></div></div>
 
     <div class="sec-title">📋 방문 기록</div>
@@ -4659,7 +4664,12 @@ function loadLocal() {
 }
 
 function saveLocal() {
-  localStorage.setItem('visit_data', JSON.stringify(visitData));
+  try {
+    localStorage.setItem('visit_data', JSON.stringify(visitData));
+    return true;
+  } catch(e) {
+    return false;  // QuotaExceededError 등 — 저장공간 초과
+  }
 }
 
 function syncSheet() {
@@ -5018,6 +5028,15 @@ function openDetail(sid) {
   document.getElementById('detail-screen').scrollTop = 0;
 }
 
+function openMap() {
+  const s = stores.find(x => x.sid === currentSid);
+  if (!s || !s.addr) { showToast('주소가 없어요'); return; }
+  // 건물명/지번 괄호와 호수·층 같은 상세주소 제거 → 지도 검색 정확도 향상
+  let q = s.addr.split('(')[0].replace(/,\s*\d.*$/, '').trim();
+  if (!q) q = s.addr;
+  window.open('https://map.kakao.com/?q=' + encodeURIComponent(q), '_blank');
+}
+
 function updateManagerDatalist() {
   const names = [...new Set(Object.values(visitData).map(v=>v.manager).filter(Boolean))];
   document.getElementById('manager-list').innerHTML = names.map(n=>`<option value="${n}">`).join('');
@@ -5078,7 +5097,18 @@ function handleFiles(input) {
     reader.onload = e => {
       visitData[currentSid].media.push({type: file.type.startsWith('video') ? 'video' : 'image', data: e.target.result, name: file.name});
       done++;
-      if (done === files.length) { saveLocal(); renderDetailMedia(); showToast(`${files.length}개 추가 완료`); }
+      if (done === files.length) {
+        if (saveLocal()) {
+          renderDetailMedia();
+          showToast(`${files.length}개 추가 완료`);
+        } else {
+          // 저장공간 초과 — 방금 추가분 롤백해 조용한 유실 방지
+          visitData[currentSid].media.splice(-files.length);
+          saveLocal();
+          renderDetailMedia();
+          showToast('⚠️ 저장공간 부족 — 사진이 저장되지 않았어요. 기존 사진을 다운로드 후 비우거나, 사진 동기화가 필요해요.');
+        }
+      }
     };
     reader.readAsDataURL(file);
   });
