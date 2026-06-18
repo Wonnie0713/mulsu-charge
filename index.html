@@ -17,7 +17,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
 .topbar h1{font-size:17px;font-weight:700;color:#fff;}
 .sync-btn{font-size:12px;background:rgba(255,255,255,0.2);color:#fff;border:0.5px solid rgba(255,255,255,0.4);padding:5px 12px;border-radius:20px;cursor:pointer;display:flex;align-items:center;gap:4px;}
 .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
-.stat-box{background:rgba(255,255,255,0.15);border-radius:8px;padding:7px 4px;text-align:center;}
+.stat-box{background:rgba(255,255,255,0.15);border-radius:8px;padding:7px 4px;text-align:center;cursor:pointer;transition:all .15s;}
+.stat-box:active{transform:scale(0.96);}
+.stat-box.on{background:#fff;}
+.stat-box.on .stat-n{color:#1a73e8;}
+.stat-box.on .stat-l{color:#1a73e8;}
 .stat-n{font-size:18px;font-weight:700;color:#fff;}
 .stat-l{font-size:9px;color:rgba(255,255,255,0.8);margin-top:1px;}
 
@@ -273,16 +277,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
       <button class="my-name-bar" onclick="changeName()" id="my-name-btn">👤 석이</button><button class="sync-btn" onclick="syncSheet()">📂 CSV</button><input type="file" id="csv-upload-input" accept=".csv" style="display:none" onchange="handleCSVUpload(this)">
     </div>
     <div class="stats-row">
-      <div class="stat-box"><div class="stat-n" id="s-total">266</div><div class="stat-l">전체</div></div>
-      <div class="stat-box"><div class="stat-n" id="s-done">0</div><div class="stat-l">방문완료</div></div>
-      <div class="stat-box"><div class="stat-n" id="s-revisit">0</div><div class="stat-l">재방문</div></div>
-      <div class="stat-box"><div class="stat-n" id="s-pending">266</div><div class="stat-l">미방문</div></div>
+      <div class="stat-box on" id="sb-all" onclick="setStatus('전체')"><div class="stat-n" id="s-total">261</div><div class="stat-l">전체</div></div>
+      <div class="stat-box" id="sb-done" onclick="setStatus('방문완료')"><div class="stat-n" id="s-done">0</div><div class="stat-l">방문완료</div></div>
+      <div class="stat-box" id="sb-revisit" onclick="setStatus('재방문필요')"><div class="stat-n" id="s-revisit">0</div><div class="stat-l">재방문</div></div>
+      <div class="stat-box" id="sb-pending" onclick="setStatus('미방문')"><div class="stat-n" id="s-pending">261</div><div class="stat-l">미방문</div></div>
     </div>
   </div>
 
   <div class="tab-bar">
     <button class="tab on" onclick="switchTab(&#39;list&#39;,this)">지역별 목록</button>
-    <button class="tab" onclick="switchTab(&#39;done&#39;,this)">방문완료</button>
     <button class="tab" onclick="switchTab(&#39;manager&#39;,this)">담당자</button>
     <button class="tab" onclick="switchTab(&#39;myplan&#39;,this)">내 담당</button>
     <button class="tab" onclick="switchTab(&#39;download&#39;,this)">다운로드</button>
@@ -302,14 +305,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
     </div>
     <div class="filter-bar">
       <span class="chip on" onclick="setFilter(&#39;전체&#39;,this)">전체</span>
-      <span class="chip" onclick="setFilter(&#39;방문완료&#39;,this)">✅ 방문완료</span>
-      <span class="chip" onclick="setFilter(&#39;미방문&#39;,this)">⬜ 미방문</span>
       <span class="chip" onclick="setFilter(&#39;쉴더스멀스&#39;,this)">쉴더스 멀스</span>
       <span class="chip" onclick="setFilter(&#39;메뉴잇멀스&#39;,this)">메뉴잇 멀스</span>
       <span class="chip" onclick="setFilter(&#39;MT85&#39;,this)">MT85</span>
       <span class="chip" onclick="setFilter(&#39;MT618&#39;,this)">MT618</span>
       <span class="chip" onclick="setFilter(&#39;Z11PLUS&#39;,this)">Z11 PLUS</span>
-      <span class="chip" onclick="setFilter(&#39;재방문필요&#39;,this)">⚠️ 재방문필요</span>
       <span class="chip" onclick="setFilter(&#39;사진있음&#39;,this)">📷 사진있음</span>
     </div>
     <div class="filter-divider"></div>
@@ -4700,7 +4700,8 @@ let stores = [];
 let searchQuery = '';
 let visitData = {};
 let currentTab = 'list';
-let currentFilter = '전체';
+let currentFilter = '전체';      // 기기·속성 칩
+let statusFilter = '전체';       // 상태(상단 숫자 박스): 전체/방문완료/재방문필요/미방문
 let currentSid = null;
 let currentRegion = '';
 let currentSubRegion = '';   // 시/군/구 세분화 필터
@@ -4892,6 +4893,18 @@ function updateStats() {
   document.getElementById('s-done').textContent = done;
   document.getElementById('s-revisit').textContent = revisit;
   document.getElementById('s-pending').textContent = pending;
+  // 활성 상태 박스 하이라이트
+  const idMap = { '전체': 'sb-all', '방문완료': 'sb-done', '재방문필요': 'sb-revisit', '미방문': 'sb-pending' };
+  document.querySelectorAll('.stat-box').forEach(b => b.classList.remove('on'));
+  const act = document.getElementById(idMap[statusFilter]);
+  if (act) act.classList.add('on');
+}
+
+// 상단 숫자 박스 클릭 → 상태 필터
+function setStatus(s) {
+  statusFilter = s;
+  if (currentTab !== 'list') switchTab('list', document.querySelector('.tab'));
+  else render();
 }
 
 function setFilter(f, el) {
@@ -4910,7 +4923,7 @@ function setRegion(r, el) {
   document.querySelectorAll('.chip-region').forEach(c => c.classList.remove('on'));
   if (currentRegion) el.classList.add('on');
   render();
-  if (currentTab !== 'list' && currentTab !== 'done') {
+  if (currentTab !== 'list') {
     switchTab('list', document.querySelector('.tab'));
   }
 }
@@ -4919,7 +4932,7 @@ function switchTab(tab, el) {
   currentTab = tab;
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
   el.classList.add('on');
-  document.getElementById('filter-bar').style.display = (tab === 'list' || tab === 'done') ? 'block' : 'none';
+  document.getElementById('filter-bar').style.display = (tab === 'list') ? 'block' : 'none';
   render();
 }
 
@@ -4943,17 +4956,18 @@ function filterStores(list) {
   if (searchQuery) {
     list = list.filter(s => ((s.name||'') + ' ' + (s.addr||'') + ' ' + (s.tel||'')).toLowerCase().includes(searchQuery));
   }
-  if (currentFilter === '전체') return list;
-  if (currentFilter === '방문완료') return list.filter(s => getEffectiveStatus(s) === '방문완료');
-  if (currentFilter === '미방문') return list.filter(s => { const st = getEffectiveStatus(s); return st !== '방문완료' && st !== '재방문필요'; });
+  // 1) 상태 필터 (상단 숫자 박스)
+  if (statusFilter === '방문완료') list = list.filter(s => getEffectiveStatus(s) === '방문완료');
+  else if (statusFilter === '재방문필요') list = list.filter(s => getEffectiveStatus(s) === '재방문필요');
+  else if (statusFilter === '미방문') list = list.filter(s => { const st = getEffectiveStatus(s); return st !== '방문완료' && st !== '재방문필요'; });
+  // 2) 기기·속성 필터 (칩)
   if (currentFilter === 'MT85') return list.filter(s => { const c = getEffectiveCharger(s); return c === 'MT85' || c === '85'; });
   if (currentFilter === 'MT618') return list.filter(s => getEffectiveCharger(s) === 'MT618');
   if (currentFilter === 'Z11PLUS') return list.filter(s => getEffectiveCharger(s).replace(/\s/g,'').toUpperCase() === 'Z11PLUS');
   if (currentFilter === '쉴더스멀스') return list.filter(s => getEffectiveMuls(s).includes('쉴더스') || getEffectiveMuls(s) === 'SK');
   if (currentFilter === '메뉴잇멀스') return list.filter(s => getEffectiveMuls(s).includes('메뉴잇') || getEffectiveMuls(s) === '메뉴잇');
   if (currentFilter === '사진있음') return list.filter(s => (getVisit(s.sid).media||[]).length > 0);
-  if (currentFilter === '재방문필요') return list.filter(s => getEffectiveStatus(s) === '재방문필요');
-  return list;
+  return list;   // currentFilter === '전체'
 }
 
 function buildRegionChips() {
@@ -5050,7 +5064,6 @@ function render() {
   buildRegionChips();
   buildSubRegionChips();
   if (currentTab === 'list') renderList(el);
-  else if (currentTab === 'done') renderDone(el);
   else if (currentTab === 'myplan') renderMyPlan(el);
   else if (currentTab === 'manager') renderManager(el);
   else if (currentTab === 'download') renderDownload(el);
@@ -5302,18 +5315,6 @@ function renderList(el) {
     arr.forEach(s => { html += storeCardHTML(s); });
   });
   el.innerHTML = html;
-}
-
-function renderDone(el) {
-  let list = filterStores(stores).filter(s => getEffectiveStatus(s) === '방문완료');
-  if (currentRegion) list = list.filter(s => getRegion(s.addr) === currentRegion);
-  if (currentSubRegion) list = list.filter(s => (getSubRegion(s.addr) || '기타') === currentSubRegion);
-  if (!list.length) { el.innerHTML = '<div class="empty-state"><p>방문완료 매장이 없어요</p></div>'; return; }
-  if (sortMode === 'distance' && userLoc) {
-    el.innerHTML = sortByDistance(list).map(o => storeCardHTML(o.s, true, distLabel(o.km))).join('');
-    return;
-  }
-  el.innerHTML = list.map(s => storeCardHTML(s, true)).join('');
 }
 
 function renderMyPlan(el) {
