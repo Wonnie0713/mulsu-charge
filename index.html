@@ -5061,6 +5061,7 @@ function render() {
     el.innerHTML = '<div class="empty-state"><div style="font-size:40px">📋</div><p>상단 [시트 동기화]를 눌러<br>데이터를 불러오세요</p></div>';
     return;
   }
+  updateStats();   // 카운트 + 활성 상태 박스 하이라이트 동기화
   buildRegionChips();
   buildSubRegionChips();
   if (currentTab === 'list') renderList(el);
