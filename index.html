@@ -167,6 +167,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
 .dl-btn{width:100%;padding:13px;background:#1a73e8;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:30px;}
 
 .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.78);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:999;display:none;white-space:nowrap;}
+.upload-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;display:flex;align-items:center;justify-content:center;}
+.upload-box{background:#fff;border-radius:16px;padding:24px 26px;width:80%;max-width:300px;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,0.25);}
+.spinner{width:40px;height:40px;margin:0 auto 14px;border:4px solid #e6eefb;border-top-color:#1a73e8;border-radius:50%;animation:spin 0.8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.upload-text{font-size:14px;font-weight:700;color:#1c1c1e;margin-bottom:12px;}
+.upload-bar{height:8px;background:#eef0f3;border-radius:6px;overflow:hidden;}
+.upload-bar-fill{height:100%;width:0%;background:#1a73e8;border-radius:6px;transition:width .2s ease;}
+.upload-sub{font-size:11px;color:#8e8e93;margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .name-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:500;display:flex;align-items:center;justify-content:center;}
 .name-popup{background:#fff;border-radius:16px;padding:24px 20px;width:88%;max-width:320px;}
 .name-popup h2{font-size:17px;font-weight:700;color:#1c1c1e;margin-bottom:6px;}
@@ -232,18 +240,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
     render();
   });
 
-  // 파일을 Cloudinary에 업로드하고 {url, path} 반환 (실패/미설정 시 throw → 호출부에서 로컬 폴백)
-  window.uploadMedia = async function(sid, file) {
-    if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) throw new Error('Cloudinary 미설정');
-    const fd = new FormData();
-    fd.append('file', file);
-    fd.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-    fd.append('folder', `mulsu/${sid}`);
-    const endpoint = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`;
-    const res = await fetch(endpoint, { method: 'POST', body: fd });
-    if (!res.ok) throw new Error('Cloudinary 업로드 실패: ' + res.status);
-    const data = await res.json();
-    return { url: data.secure_url, path: data.public_id };
+  // 파일을 Cloudinary에 업로드하고 {url, path} 반환. onProgress(0~1)로 업로드 진행률 통지.
+  // (실패/미설정 시 reject → 호출부에서 로컬 폴백)
+  window.uploadMedia = function(sid, file, onProgress) {
+    return new Promise((resolve, reject) => {
+      if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) { reject(new Error('Cloudinary 미설정')); return; }
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+      fd.append('folder', `mulsu/${sid}`);
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`);
+      xhr.upload.onprogress = e => { if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total); };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try { const d = JSON.parse(xhr.responseText); resolve({ url: d.secure_url, path: d.public_id }); }
+          catch (err) { reject(err); }
+        } else { reject(new Error('Cloudinary 업로드 실패: ' + xhr.status)); }
+      };
+      xhr.onerror = () => reject(new Error('네트워크 오류'));
+      xhr.send(fd);
+    });
   };
 
   // Firebase 저장 — 담당자/상태/메모 + Storage URL 사진만(base64는 용량상 제외)
@@ -4685,6 +4702,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
   <span class="route-fab-go">경로 짜기 ›</span>
 </div>
 
+<div class="upload-overlay" id="upload-overlay" style="display:none;">
+  <div class="upload-box">
+    <div class="spinner"></div>
+    <div class="upload-text" id="upload-text">업로드 중…</div>
+    <div class="upload-bar"><div class="upload-bar-fill" id="upload-bar-fill"></div></div>
+    <div class="upload-sub" id="upload-sub"></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 <div class="name-overlay" id="name-overlay" style="display:none;">
   <div class="name-popup">
@@ -5640,26 +5666,30 @@ async function handleFiles(input) {
   if (!visitData[sid]) visitData[sid] = {media:[]};
   if (!visitData[sid].media) visitData[sid].media = [];
   const startLen = visitData[sid].media.length;
-  showToast(`${files.length}개 처리 중...`);
+  showUploadProgress(true, files.length);
   let uploaded = 0, local = 0;
-  for (const file of files) {
+  for (let idx = 0; idx < files.length; idx++) {
+    const file = files[idx];
     const type = file.type.startsWith('video') ? 'video' : 'image';
+    setUploadProgress(idx, files.length, 0, file.name);
     let item = null;
-    // 1순위: Firebase Storage 업로드 → URL (팀 공유)
+    // 1순위: Cloudinary 업로드 → URL (팀 공유). 진행률은 게이지에 표시.
     if (window._fbReady && window.uploadMedia) {
       try {
-        const { url, path } = await window.uploadMedia(sid, file);
+        const { url, path } = await window.uploadMedia(sid, file, frac => setUploadProgress(idx, files.length, frac, file.name));
         item = { type, url, path, name: file.name };
         uploaded++;
       } catch(e) { /* 실패 시 아래 로컬 폴백 */ }
     }
-    // 2순위: 로컬 base64 (Storage 미설정/오프라인 등)
+    // 2순위: 로컬 base64 (Cloudinary 미설정/오프라인 등)
     if (!item) {
       try { item = { type, data: await readAsDataURL(file), name: file.name }; local++; }
       catch(e) { continue; }
     }
     visitData[sid].media.push(item);
+    setUploadProgress(idx + 1, files.length, 0, file.name);
   }
+  showUploadProgress(false);
   // 로컬 저장 (base64 때문에 용량 초과 가능)
   if (!saveLocal()) {
     // 이번 배치에서 추가한 것 중 base64만 롤백 — 기존 사진과 업로드된 URL은 유지
@@ -5675,6 +5705,23 @@ async function handleFiles(input) {
   }
   renderDetailMedia();
   input.value = '';
+}
+
+function showUploadProgress(show, total) {
+  const ov = document.getElementById('upload-overlay');
+  if (!ov) return;
+  ov.style.display = show ? 'flex' : 'none';
+  if (show) setUploadProgress(0, total || 1, 0, '');
+}
+
+function setUploadProgress(done, total, frac, name) {
+  const overall = total ? Math.round(((done + (frac || 0)) / total) * 100) : 0;
+  const fill = document.getElementById('upload-bar-fill');
+  const txt = document.getElementById('upload-text');
+  const sub = document.getElementById('upload-sub');
+  if (fill) fill.style.width = overall + '%';
+  if (txt) txt.textContent = `📤 업로드 중 ${Math.min(done + 1, total)}/${total} · ${overall}%`;
+  if (sub) sub.textContent = name || '';
 }
 
 function viewMedia(idx) {
