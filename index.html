@@ -5004,15 +5004,15 @@ function filterStores(list) {
 
 function buildRegionChips() {
   const regions = ['서울','경기','부산','인천','대구','대전','광주','울산','강원','충북','충남','전북','전남','경북','경남','제주','세종'];
-  const existing = new Set(stores.map(s => getRegion(s.addr)));
   const el = document.getElementById('region-chips');
   if (!el) return;
+  // 현재 상태/기기/검색 필터를 반영한 지역별 카운트
+  const counts = {};
+  filterStores(stores).forEach(s => { const r = getRegion(s.addr); counts[r] = (counts[r] || 0) + 1; });
   el.innerHTML = regions
-    .filter(r => existing.has(r))
-    .map(r => {
-      const cnt = stores.filter(s => getRegion(s.addr) === r).length;
-      return `<span class="chip-region" onclick="setRegion('${r}',this)">${r} <span style="font-size:10px;opacity:0.7;">${cnt}</span></span>`;
-    }).join('');
+    .filter(r => counts[r] || r === currentRegion)   // 매칭 있는 지역 + 선택된 지역은 유지
+    .map(r => `<span class="chip-region ${currentRegion === r ? 'on' : ''}" onclick="setRegion('${r}',this)">${r} <span style="font-size:10px;opacity:0.7;">${counts[r] || 0}</span></span>`)
+    .join('');
 }
 
 function buildSubRegionChips() {
@@ -5024,11 +5024,13 @@ function buildSubRegionChips() {
     el.innerHTML = '';
     return;
   }
+  // 현재 필터 반영한 시/군/구 카운트
   const counts = {};
-  stores.filter(s => getRegion(s.addr) === currentRegion).forEach(s => {
+  filterStores(stores).filter(s => getRegion(s.addr) === currentRegion).forEach(s => {
     const sub = getSubRegion(s.addr) || '기타';
     counts[sub] = (counts[sub] || 0) + 1;
   });
+  if (currentSubRegion && !counts[currentSubRegion]) counts[currentSubRegion] = 0;  // 선택된 건 유지
   const subs = Object.entries(counts).sort((a, b) => b[1] - a[1]);
   if (subs.length <= 1) { el.style.display = 'none'; el.innerHTML = ''; return; }  // 한 곳뿐이면 굳이 안 보임
   el.style.display = 'flex';
