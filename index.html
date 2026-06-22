@@ -60,8 +60,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
 .map-view-btn:active{background:#EAF3DE;}
 #map-canvas{position:absolute;top:52px;left:0;right:0;bottom:0;background:#e8e8e8;}
 #map-legend{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);z-index:600;background:rgba(255,255,255,0.94);border-radius:18px;padding:7px 14px;font-size:11px;font-weight:600;color:#444;box-shadow:0 2px 8px rgba(0,0,0,0.15);white-space:nowrap;}
-.card-actions{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding-right:8px;}
-.route-btn{width:30px;height:30px;border-radius:50%;border:1px solid #85B7EB;background:#fff;color:#1a73e8;font-size:16px;font-weight:700;cursor:pointer;line-height:1;flex-shrink:0;}
+.card-actions{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:0 10px;flex-shrink:0;}
+.route-btn,.pin-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:48px;height:44px;border-radius:12px;font-size:17px;font-weight:700;line-height:1;cursor:pointer;flex-shrink:0;opacity:1;-webkit-tap-highlight-color:rgba(0,0,0,0.08);}
+.route-btn,.pin-btn{transition:transform .1s;}
+.route-btn:active,.pin-btn:active{transform:scale(0.92);}
+.card-actions small{font-size:9px;font-weight:700;}
+.route-btn{border:1px solid #85B7EB;background:#eef4fd;color:#1a73e8;}
 .route-btn.on{background:#1a73e8;color:#fff;border-color:#1a73e8;}
 .route-fab{position:fixed;left:14px;right:14px;bottom:16px;z-index:200;background:#1a73e8;color:#fff;border-radius:14px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;font-size:14px;font-weight:700;box-shadow:0 4px 16px rgba(26,115,232,0.4);cursor:pointer;}
 .route-fab b{font-size:16px;}
@@ -195,8 +199,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
 .name-popup button{width:100%;padding:13px;background:#1a73e8;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;}
 .my-name-bar{background:rgba(255,255,255,0.15);border-radius:8px;padding:5px 10px;font-size:12px;color:#fff;display:flex;align-items:center;gap:5px;cursor:pointer;border:none;}
 .v-myplan{background:#fce4ec;color:#880e4f;}
-.pin-btn{background:none;border:none;font-size:22px;cursor:pointer;padding:4px;line-height:1;flex-shrink:0;opacity:0.3;transition:opacity .15s;}
-.pin-btn.on{opacity:1;}
+.pin-btn{border:1px solid #e5e5ea;background:#fff;color:#8e8e93;}
+.pin-btn.on{background:#fce4ec;border-color:#f5a9c8;color:#880e4f;}
 .myplan-btn{width:100%;padding:12px;background:#fce4ec;color:#880e4f;border:1px solid #f8bbd0;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;margin-top:4px;}
 .saved-info{margin-top:10px;font-size:11px;color:#8e8e93;text-align:center;}
 </style>
@@ -1240,7 +1244,7 @@ function storeCardHTML(s, showManager, distText) {
   const inR = inRoute(s.sid);
   // 동선 담기 버튼은 '내 담당' 탭에서만 노출
   const routeBtn = currentTab === 'myplan'
-    ? `<button class="route-btn ${inR?'on':''}" onclick="event.stopPropagation();toggleRoute('${s.sid}')" title="동선에 담기">${inR?'✓':'＋'}</button>`
+    ? `<button class="route-btn ${inR?'on':''}" onclick="event.stopPropagation();toggleRoute('${s.sid}')" title="동선에 담기">${inR?'✓':'＋'}<small>${inR?'담김':'동선'}</small></button>`
     : '';
   return `<div class="store-card" onclick="openDetail('${s.sid}')" style="display:flex;align-items:stretch;padding:0;">
     <div style="flex:1;padding:12px 10px 12px 14px;min-width:0;">
@@ -1260,7 +1264,7 @@ function storeCardHTML(s, showManager, distText) {
     </div>
     <div class="card-actions">
       ${routeBtn}
-      <button class="pin-btn ${isPinned?'on':''}" onclick="event.stopPropagation();togglePin('${s.sid}')" title="내 담당 등록">📌</button>
+      <button class="pin-btn ${isPinned?'on':''}" onclick="event.stopPropagation();togglePin('${s.sid}')" title="내 담당 등록">📌<small>${isPinned?'내담당':'담당'}</small></button>
     </div>
   </div>`;
 }
