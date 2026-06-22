@@ -75,6 +75,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
 .route-sub{font-size:11px;color:#8e8e93;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .route-kakao{font-size:12px;font-weight:600;color:#3C3489;background:#EEEDFE;padding:6px 10px;border-radius:8px;text-decoration:none;flex-shrink:0;}
 .route-go{width:100%;padding:13px;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;margin-top:10px;background:#34a853;color:#fff;}
+.route-go.naver{background:#03C75A;}
 .route-tip{font-size:11px;color:#aeaeb2;margin-top:8px;line-height:1.5;text-align:center;}
 .chip{padding:5px 12px;border-radius:20px;font-size:12px;font-weight:500;border:0.5px solid #e5e5ea;color:#636366;white-space:nowrap;background:#fff;cursor:pointer;transition:all .15s;}
 .chip.on{background:#E6F1FB;color:#0C447C;border-color:#85B7EB;}
@@ -1017,23 +1018,30 @@ function renderRoute() {
     <div class="route-summary">${startNote}총 ${ordered.length}곳 · 직선 합계 약 ${distLabel(total)}</div>
     ${noCoord ? `<div class="route-warn">⚠️ 좌표 없는 ${noCoord}곳은 제외됨</div>` : ''}
     ${rows}
-    <button class="route-go google" onclick="openGoogleRoute()">🗺️ 구글지도로 전체 경로 열기</button>
-    <p class="route-tip">구글지도는 최적 순서대로 한 번에, 카카오는 매장별로 길안내해요. (구글 경유지 최대 9곳)</p>
+    <button class="route-go naver" onclick="openNaverRoute()">🟢 네이버 지도로 전체 경로 (자동차)</button>
+    <p class="route-tip">구글 지도는 국내 자동차 길찾기를 지원하지 않습니다. <b>전체 경로</b>는 네이버 지도(모바일·앱, 경유지 5곳까지), <b>매장별</b>은 위의 '카카오'로 안내돼요.</p>
   `;
-  window._routeOrdered = ordered;  // 구글 핸드오프용
+  window._routeOrdered = ordered;  // 핸드오프용
 }
 
-function openGoogleRoute() {
-  const ordered = window._routeOrdered || [];
+// 네이버 지도 앱으로 다중 경유지 자동차 경로 (모바일, 네이버 지도 앱 필요)
+function openNaverRoute() {
+  const ordered = (window._routeOrdered || []).slice();
   if (!ordered.length) return;
-  const origin = userLoc ? `${userLoc.lat},${userLoc.lng}` : `${ordered[0].lat},${ordered[0].lng}`;
-  const pts = userLoc ? ordered.slice() : ordered.slice(1);
-  if (!pts.length) { showToast('경유할 매장이 부족해요'); return; }
-  const dest = pts[pts.length - 1];
-  const mids = pts.slice(0, -1).map(p => `${p.lat},${p.lng}`).join('|');
-  let url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest.lat},${dest.lng}&travelmode=driving`;
-  if (mids) url += `&waypoints=${encodeURIComponent(mids)}`;
-  window.open(url, '_blank');
+  let start;
+  if (userLoc) start = { lat: userLoc.lat, lng: userLoc.lng, name: '현재 위치' };
+  else start = ordered.shift();
+  if (!ordered.length) { showToast('매장이 부족해요'); return; }
+  const dest = ordered.pop();
+  const waypts = ordered.slice(0, 5);   // 네이버 경유지 최대 5곳
+  let url = `nmap://route/car?slat=${start.lat}&slng=${start.lng}&sname=${encodeURIComponent(start.name || '출발')}`
+          + `&dlat=${dest.lat}&dlng=${dest.lng}&dname=${encodeURIComponent(dest.name)}`;
+  waypts.forEach((p, i) => {
+    url += `&v${i + 1}lat=${p.lat}&v${i + 1}lng=${p.lng}&v${i + 1}name=${encodeURIComponent(p.name)}`;
+  });
+  url += `&appname=wonnie0713.github.io`;
+  if (ordered.length > 5) showToast('경유지가 많아 앞 5곳까지만 네이버로 전달돼요');
+  window.location.href = url;   // 앱 스킴 호출
 }
 
 /* ===== 지도 뷰 (Leaflet + OSM) ===== */
