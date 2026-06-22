@@ -1,5 +1,5 @@
-/* 멀스 모니터링 PWA 서비스워커 — 앱 셸 오프라인 캐시 */
-const CACHE = 'mulsu-shell-v1';
+/* 멀스 모니터링 PWA 서비스워커 — 앱 셸 오프라인 캐시 + 자동 업데이트 */
+const CACHE = 'mulsu-shell-v2';
 const SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -21,13 +21,25 @@ self.addEventListener('fetch', e => {
   // 동적 데이터(Firestore/Cloudinary 등)는 캐시하지 않고 항상 네트워크
   if (/firestore|googleapis|firebaseio|cloudinary/.test(url.hostname)) return;
 
-  // 같은 출처(앱 셸): 캐시 우선, 없으면 네트워크
+  // 같은 출처(앱 셸): 네트워크 우선(최신 자동 반영) + 3.5초 타임아웃 → 캐시 폴백(오프라인/약신호)
   if (url.origin === self.location.origin) {
-    e.respondWith(caches.match(req).then(r => r || fetch(req)));
+    e.respondWith((async () => {
+      const cache = await caches.open(CACHE);
+      try {
+        const net = await Promise.race([
+          fetch(req),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 3500))
+        ]);
+        if (net && net.ok) cache.put(req, net.clone());
+        return net;
+      } catch (err) {
+        return (await cache.match(req)) || (await cache.match('./index.html')) || (await cache.match('./'));
+      }
+    })());
     return;
   }
 
-  // CDN(Firebase SDK·Leaflet·jszip·OSM 타일 등): stale-while-revalidate
+  // CDN(Firebase SDK·Leaflet·jszip·OSM 타일): stale-while-revalidate
   e.respondWith(
     caches.open(CACHE).then(async c => {
       const cached = await c.match(req);
