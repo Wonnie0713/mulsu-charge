@@ -190,7 +190,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
 .name-popup{background:#fff;border-radius:16px;padding:24px 20px;width:88%;max-width:320px;}
 .name-popup h2{font-size:17px;font-weight:700;color:#1c1c1e;margin-bottom:6px;}
 .name-popup p{font-size:13px;color:#8e8e93;margin-bottom:16px;line-height:1.5;}
-.name-popup input{width:100%;padding:12px 14px;border:1px solid #e5e5ea;border-radius:10px;font-size:16px;color:#1c1c1e;outline:none;font-family:inherit;margin-bottom:12px;}
+.name-popup input,.name-popup select{width:100%;padding:12px 14px;border:1px solid #e5e5ea;border-radius:10px;font-size:16px;color:#1c1c1e;outline:none;font-family:inherit;margin-bottom:12px;background:#fff;}
 .name-popup button{width:100%;padding:13px;background:#1a73e8;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;}
 .my-name-bar{background:rgba(255,255,255,0.15);border-radius:8px;padding:5px 10px;font-size:12px;color:#fff;display:flex;align-items:center;gap:5px;cursor:pointer;border:none;}
 .v-myplan{background:#fce4ec;color:#880e4f;}
@@ -382,8 +382,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
       </div>
       <div class="form-row">
         <label class="form-label">담당자</label>
-        <input class="form-input" id="f-manager" placeholder="담당자 이름" list="manager-list">
-        <datalist id="manager-list"></datalist>
+        <select class="form-select" id="f-manager">
+          <option value="">선택</option>
+          <option>김형석</option>
+          <option>이상원</option>
+          <option>조재현</option>
+          <option>최호준</option>
+        </select>
       </div>
       <div class="form-row">
         <label class="form-label">방문 날짜</label>
@@ -470,8 +475,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;back
 <div class="name-overlay" id="name-overlay" style="display:none;">
   <div class="name-popup">
     <h2>👋 안녕하세요!</h2>
-    <p>내 담당 매장을 관리하려면<br>이름을 입력해주세요</p>
-    <input type="text" id="name-input" placeholder="이름 입력" maxlength="10">
+    <p>내 담당 매장을 관리하려면<br>담당자를 선택해주세요</p>
+    <select id="name-input">
+      <option value="">담당자 선택</option>
+      <option>김형석</option>
+      <option>이상원</option>
+      <option>조재현</option>
+      <option>최호준</option>
+    </select>
     <button onclick="saveName()">시작하기</button>
   </div>
 </div>
@@ -1308,7 +1319,6 @@ function openDetail(sid) {
   document.getElementById('f-charger-edit').value = v.charger || s.charger || '';
   document.getElementById('f-muls-edit').value = v.muls || '';
   document.getElementById('f-memo').value = v.memo || '';
-  updateManagerDatalist();
   updateSavedInfo(v);
   renderDetailMedia();
   document.getElementById('detail-screen').classList.add('on');
@@ -1322,11 +1332,6 @@ function openMap() {
   let q = s.addr.split('(')[0].replace(/,\s*\d.*$/, '').trim();
   if (!q) q = s.addr;
   window.open('https://map.kakao.com/?q=' + encodeURIComponent(q), '_blank');
-}
-
-function updateManagerDatalist() {
-  const names = [...new Set(Object.values(visitData).map(v=>v.manager).filter(Boolean))];
-  document.getElementById('manager-list').innerHTML = names.map(n=>`<option value="${n}">`).join('');
 }
 
 function closeDetail() {
