@@ -1150,20 +1150,29 @@ function renderMyPlan(el) {
     return;
   }
   const regionOrder = ['서울','경기','부산','인천','대구','대전','광주','울산','강원','충북','충남','전북','전남','경북','경남','제주','세종','기타'];
-  // 상태별 카운트 + 서브탭 (방문예정 / 방문완료 / 기타)
+  // 상태별 카운트 + 서브탭 (예정 / 완료 / 기타 / 담음)
   const planCount = myList.filter(s => getEffectiveStatus(s) === '방문예정').length;
   const doneCount = myList.filter(s => getEffectiveStatus(s) === '방문완료').length;
   const otherCount = myList.length - planCount - doneCount;
-  const stCount = { '방문예정': planCount, '방문완료': doneCount, '기타': otherCount };
-  const subtabs = [['방문예정','📌 방문예정'],['방문완료','✅ 방문완료'],['기타','기타']].map(([k,l]) =>
+  // 담은 동선이 없는데 '동선' 탭이면 예정으로 복귀
+  if (myPlanStatus === '동선' && !routeSel.length) myPlanStatus = '방문예정';
+  const stCount = { '방문예정': planCount, '방문완료': doneCount, '기타': otherCount, '동선': routeSel.length };
+  const tabDefs = [['방문예정','📌 예정'],['방문완료','✅ 완료'],['기타','기타']];
+  if (routeSel.length) tabDefs.push(['동선','🧭 담음']);
+  const subtabs = tabDefs.map(([k,l]) =>
     `<button class="myplan-subtab ${myPlanStatus === k ? 'on' : ''}" onclick="setMyPlanStatus('${k}')">${l} ${stCount[k]}</button>`).join('');
-  // 선택 상태로 거른 기준 목록
-  const baseList = myList.filter(s => {
-    const st = getEffectiveStatus(s);
-    if (myPlanStatus === '방문예정') return st === '방문예정';
-    if (myPlanStatus === '방문완료') return st === '방문완료';
-    return st !== '방문예정' && st !== '방문완료';
-  });
+  // 선택 기준 목록
+  let baseList;
+  if (myPlanStatus === '동선') {
+    baseList = routeSel.map(sid => stores.find(s => s.sid === sid)).filter(Boolean);
+  } else {
+    baseList = myList.filter(s => {
+      const st = getEffectiveStatus(s);
+      if (myPlanStatus === '방문예정') return st === '방문예정';
+      if (myPlanStatus === '방문완료') return st === '방문완료';
+      return st !== '방문예정' && st !== '방문완료';
+    });
+  }
   // 지역 칩 (선택 상태 기준 카운트)
   const regionCounts = {};
   baseList.forEach(s => { const r = getRegion(s.addr); regionCounts[r] = (regionCounts[r] || 0) + 1; });
